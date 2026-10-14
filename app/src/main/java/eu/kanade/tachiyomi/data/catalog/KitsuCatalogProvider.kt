@@ -66,6 +66,8 @@ class KitsuCatalogProvider(
                     ?: attrs["averageRating"]?.jsonPrimitive?.doubleOrNull?.div(10.0),
                 status = attrs["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 trackingUrl = slug?.let { "https://kitsu.app/manga/$it" }.orEmpty(),
+                startDate = attrs["startDate"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                chaptersCount = attrs["chapterCount"]?.jsonPrimitive?.contentOrNull?.toIntOrNull(),
             )
         }
     }

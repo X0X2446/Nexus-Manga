@@ -52,6 +52,7 @@ import tachiyomi.domain.category.interactor.ResetCategoryFlags
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetFavorites
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.ResetViewerFlags
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.storage.service.StoragePreferences
@@ -122,6 +123,7 @@ interface AppGraph : ViewModelGraph {
     val resetCategoryFlags: ResetCategoryFlags
     val addTracks: AddTracks
     val upsertTrack: UpsertTrack
+    val networkToLocalManga: NetworkToLocalManga
 
     val getExtensionStoreCountAsFlow: GetExtensionStoreCountAsFlow
 

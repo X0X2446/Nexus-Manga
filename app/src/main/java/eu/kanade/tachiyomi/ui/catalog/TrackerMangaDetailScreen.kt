@@ -1,21 +1,26 @@
 package eu.kanade.tachiyomi.ui.catalog
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,31 +30,42 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.presentation.components.GlassShapeMedium
+import eu.kanade.presentation.components.LiquidGlassSurface
+import eu.kanade.presentation.components.nexusAtmosphereBrush
 import eu.kanade.presentation.manga.components.MangaCover
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.catalog.CatalogManga
 import eu.kanade.tachiyomi.source.CatalogueSource
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen
+import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
+import mihon.domain.manga.model.toDomainManga
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.roundedfilled.Extension
+import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.source.local.LocalSource
@@ -64,12 +80,24 @@ data class TrackerMangaDetailScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         var sources by remember { mutableStateOf<List<CatalogueSource>>(emptyList()) }
         var showPicker by remember { mutableStateOf(false) }
+        var opening by remember { mutableStateOf(false) }
+        var descriptionExpanded by remember { mutableStateOf(false) }
+        val isDark = isSystemInDarkTheme()
+        val cleanSynopsis = remember(manga.synopsis) {
+            manga.synopsis
+                .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+                .replace(Regex("<[^>]+>"), "")
+                .trim()
+        }
 
         LaunchedEffect(Unit) {
             sources = withContext(Dispatchers.IO) {
-                context.appGraph.sourceManager.getOnlineSources()
+                val graph = context.appGraph
+                graph.extensionManager.getLoadedExtensions()
+                graph.sourceManager.getOnlineSources()
                     .filter { it.id != LocalSource.ID }
                     .filterIsInstance<CatalogueSource>()
                     .sortedBy { it.name.lowercase() }
@@ -77,9 +105,10 @@ data class TrackerMangaDetailScreen(
         }
 
         Scaffold(
+            containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text(manga.title, maxLines = 1) },
+                    title = { Text(manga.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         IconButton(onClick = navigator::pop) {
                             Icon(
@@ -88,8 +117,10 @@ data class TrackerMangaDetailScreen(
                             )
                         }
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
             },
+            modifier = Modifier.background(nexusAtmosphereBrush(isDark)),
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -102,18 +133,21 @@ data class TrackerMangaDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    MangaCover.Book(
-                        data = manga.coverUrl.ifBlank { null },
-                        modifier = Modifier
-                            .width(180.dp)
-                            .padding(bottom = 16.dp),
-                    )
+                    LiquidGlassSurface(shape = GlassShapeMedium) {
+                        MangaCover.Book(
+                            data = manga.coverUrl.ifBlank { null },
+                            modifier = Modifier
+                                .width(180.dp)
+                                .padding(10.dp),
+                        )
+                    }
                 }
 
                 Text(
                     text = manga.title,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp),
                 )
                 if (manga.author.isNotBlank()) {
                     Text(
@@ -121,6 +155,22 @@ data class TrackerMangaDetailScreen(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                if (manga.startDate.isNotBlank()) {
+                    Text(
+                        text = stringResource(MR.strings.catalog_release_date, manga.startDate),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                if (manga.chaptersCount != null && manga.chaptersCount > 0) {
+                    Text(
+                        text = stringResource(MR.strings.catalog_chapters_count, manga.chaptersCount),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
                 if (manga.score != null) {
@@ -138,37 +188,88 @@ data class TrackerMangaDetailScreen(
                         modifier = Modifier.padding(top = 12.dp),
                     ) {
                         manga.genres.take(12).forEach { genre ->
-                            AssistChip(
-                                onClick = {},
-                                label = { Text(genre) },
+                            AssistChip(onClick = {}, label = { Text(genre) })
+                        }
+                    }
+                }
+
+                if (cleanSynopsis.isNotBlank()) {
+                    LiquidGlassSurface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                            .clickable { descriptionExpanded = !descriptionExpanded },
+                        shape = GlassShapeMedium,
+                        elevation = 4.dp,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(14.dp)
+                                .animateContentSize(),
+                        ) {
+                            Text(
+                                text = cleanSynopsis,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = if (descriptionExpanded) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(
+                                    if (descriptionExpanded) {
+                                        MR.strings.catalog_show_less
+                                    } else {
+                                        MR.strings.catalog_read_more
+                                    },
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 8.dp),
                             )
                         }
                     }
                 }
 
-                if (manga.synopsis.isNotBlank()) {
-                    Text(
-                        text = manga.synopsis
-                            .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
-                            .replace(Regex("<[^>]+>"), ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
                 if (sources.isNotEmpty()) {
-                    Button(
-                        onClick = { showPicker = true },
-                        modifier = Modifier.fillMaxWidth(),
+                    LiquidGlassSurface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !opening) { showPicker = true },
+                        shape = GlassShapeMedium,
                     ) {
-                        Icon(
-                            imageVector = MaterialSymbols.RoundedFilled.Extension,
-                            contentDescription = null,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(MR.strings.action_read))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (opening) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Text(stringResource(MR.strings.catalog_opening_manga))
+                                }
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = MaterialSymbols.RoundedFilled.Extension,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = stringResource(MR.strings.action_read),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -179,12 +280,38 @@ data class TrackerMangaDetailScreen(
                 sources = sources,
                 onSelect = { source ->
                     showPicker = false
-                    navigator.push(BrowseSourceScreen(source.id, listingQuery = manga.title))
+                    opening = true
+                    scope.launch {
+                        val localManga = withContext(Dispatchers.IO) {
+                            openMangaFromSource(context, source, manga.title)
+                        }
+                        opening = false
+                        if (localManga != null) {
+                            navigator.push(MangaScreen(localManga.id))
+                        } else {
+                            context.toast(MR.strings.catalog_no_match)
+                        }
+                    }
                 },
                 onDismiss = { showPicker = false },
             )
         }
     }
+}
+
+private suspend fun openMangaFromSource(
+    context: android.content.Context,
+    source: CatalogueSource,
+    title: String,
+): Manga? {
+    val results = source.getSearchManga(1, title, source.getFilterList()).mangas
+    if (results.isEmpty()) return null
+    val match = results.firstOrNull { it.title.equals(title, ignoreCase = true) }
+        ?: results.firstOrNull {
+            it.title.contains(title, ignoreCase = true) || title.contains(it.title, ignoreCase = true)
+        }
+        ?: results.first()
+    return context.appGraph.networkToLocalManga(match.toDomainManga(source.id))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -197,6 +324,7 @@ fun ExtensionPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
     ) {
         Column(
             modifier = Modifier

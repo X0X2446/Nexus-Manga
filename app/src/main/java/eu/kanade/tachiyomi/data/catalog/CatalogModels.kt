@@ -12,6 +12,8 @@ data class CatalogManga(
     val status: String = "",
     val trackingUrl: String = "",
     val author: String = "",
+    val startDate: String = "",
+    val chaptersCount: Int? = null,
 ) : java.io.Serializable
 
 enum class CatalogKind {
@@ -26,6 +28,7 @@ data class CatalogOption(
     val kind: CatalogKind,
     val logoRes: Int? = null,
     val sourceId: Long? = null,
+    val lang: String? = null,
 )
 
 interface CatalogProvider {

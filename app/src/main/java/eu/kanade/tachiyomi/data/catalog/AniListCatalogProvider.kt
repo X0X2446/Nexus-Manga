@@ -43,6 +43,8 @@ class AniListCatalogProvider(
                   averageScore
                   status
                   siteUrl
+                  chapters
+                  startDate { year month day }
                   staff(perPage: 1, sort: [RELEVANCE]) {
                     nodes { name { userPreferred } }
                   }
@@ -100,6 +102,14 @@ class AniListCatalogProvider(
                     ?.jsonPrimitive
                     ?.contentOrNull
                     .orEmpty(),
+                startDate = item["startDate"]?.jsonObject?.let { date ->
+                    listOfNotNull(
+                        date["year"]?.jsonPrimitive?.contentOrNull,
+                        date["month"]?.jsonPrimitive?.contentOrNull?.padStart(2, '0'),
+                        date["day"]?.jsonPrimitive?.contentOrNull?.padStart(2, '0'),
+                    ).joinToString("-").takeIf { it.isNotBlank() && it != "--" }.orEmpty()
+                }.orEmpty(),
+                chaptersCount = item["chapters"]?.jsonPrimitive?.intOrNull,
             )
         }
     }

@@ -3,6 +3,8 @@ package eu.kanade.tachiyomi.ui.home
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -16,6 +18,7 @@ import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabNavigator
+import eu.kanade.presentation.components.nexusAtmosphereBrush
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
@@ -75,7 +78,12 @@ object HomeScreen : Screen() {
                     }
                 }
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                val isDark = isSystemInDarkTheme()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(nexusAtmosphereBrush(isDark)),
+                ) {
                     AnimatedContent(
                         targetState = tabNavigator.current,
                         transitionSpec = {

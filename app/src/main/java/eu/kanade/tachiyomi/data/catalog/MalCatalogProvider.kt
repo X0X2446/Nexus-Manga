@@ -37,7 +37,7 @@ class MalCatalogProvider(
             .appendQueryParameter("nsfw", "true")
             .appendQueryParameter(
                 "fields",
-                "id,title,main_picture,synopsis,mean,status,genres,authors{first_name,last_name},media_type",
+                "id,title,main_picture,synopsis,mean,status,genres,authors{first_name,last_name},media_type,num_chapters,start_date",
             )
             .build()
             .toString()
@@ -77,6 +77,8 @@ class MalCatalogProvider(
                 status = node["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 trackingUrl = "https://myanimelist.net/manga/$id",
                 author = authors.firstOrNull().orEmpty(),
+                startDate = node["start_date"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                chaptersCount = node["num_chapters"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 },
             )
         }
     }

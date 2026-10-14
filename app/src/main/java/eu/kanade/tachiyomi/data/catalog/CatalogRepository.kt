@@ -4,8 +4,12 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.serialization.json.Json
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -18,6 +22,7 @@ class CatalogRepository(
     private val json: Json,
     private val sourceManager: SourceManager,
     private val trackerManager: TrackerManager,
+    private val extensionManager: ExtensionManager,
 ) {
 
     private val client = networkHelper.client
@@ -60,7 +65,36 @@ class CatalogRepository(
         ),
     )
 
+    /**
+     * Emits installed extension catalogue sources for the catalog switcher.
+     * Waits for the first extension load so the list is not stuck empty.
+     */
+    fun extensionOptionsFlow(): Flow<List<CatalogOption>> {
+        return extensionManager.loadedExtensionsFlow
+            .onStart { extensionManager.getLoadedExtensions() }
+            .map { extensions ->
+                extensions
+                    .asSequence()
+                    .flatMap { it.sources }
+                    .filterIsInstance<CatalogueSource>()
+                    .filter { it.id != LocalSource.ID }
+                    .sortedBy { it.name.lowercase() }
+                    .map { source ->
+                        CatalogOption(
+                            id = CatalogIds.extension(source.id),
+                            name = source.name,
+                            descriptionRes = MR.strings.catalog_extension_desc,
+                            kind = CatalogKind.EXTENSION,
+                            sourceId = source.id,
+                            lang = source.lang,
+                        )
+                    }
+                    .toList()
+            }
+    }
+
     suspend fun extensionOptions(): List<CatalogOption> {
+        extensionManager.getLoadedExtensions()
         return getCatalogueSources().map { source ->
             CatalogOption(
                 id = CatalogIds.extension(source.id),
@@ -68,6 +102,7 @@ class CatalogRepository(
                 descriptionRes = MR.strings.catalog_extension_desc,
                 kind = CatalogKind.EXTENSION,
                 sourceId = source.id,
+                lang = source.lang,
             )
         }
     }
@@ -75,11 +110,13 @@ class CatalogRepository(
     suspend fun resolveProvider(catalogId: String): CatalogProvider? {
         trackerProviders[catalogId]?.let { return it }
         val sourceId = CatalogIds.sourceIdOrNull(catalogId) ?: return null
+        extensionManager.getLoadedExtensions()
         val source = sourceManager.get(sourceId) as? CatalogueSource ?: return null
         return ExtensionCatalogProvider(source)
     }
 
     suspend fun getCatalogueSources(): List<CatalogueSource> {
+        extensionManager.getLoadedExtensions()
         return sourceManager.getOnlineSources()
             .filter { it.id != LocalSource.ID }
             .filterIsInstance<CatalogueSource>()
