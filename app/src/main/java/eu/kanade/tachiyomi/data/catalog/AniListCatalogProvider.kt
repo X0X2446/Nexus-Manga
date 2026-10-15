@@ -24,16 +24,17 @@ class AniListCatalogProvider(
     override val id: String = CatalogIds.ANILIST
     override val displayName: String = "AniList"
 
-    override suspend fun getTrending(page: Int): List<CatalogManga> =
-        browse(page, sort = "TRENDING_DESC")
+    override suspend fun getTrending(page: Int, pageSize: Int): List<CatalogManga> =
+        browse(page, pageSize, sort = "TRENDING_DESC")
 
-    override suspend fun getPopular(page: Int): List<CatalogManga> =
-        browse(page, sort = "POPULARITY_DESC")
+    override suspend fun getPopular(page: Int, pageSize: Int): List<CatalogManga> =
+        browse(page, pageSize, sort = "POPULARITY_DESC")
 
-    private suspend fun browse(page: Int, sort: String): List<CatalogManga> {
+    private suspend fun browse(page: Int, pageSize: Int, sort: String): List<CatalogManga> {
+        val perPage = pageSize.coerceIn(6, 48)
         val query = """
-            query (${'$'}page: Int) {
-              Page(page: ${'$'}page, perPage: 24) {
+            query (${'$'}page: Int, ${'$'}perPage: Int) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
                 media(type: MANGA, format_not_in: [NOVEL], sort: [$sort]) {
                   id
                   title { userPreferred romaji english }
@@ -59,6 +60,7 @@ class AniListCatalogProvider(
                 "variables",
                 buildJsonObject {
                     put("page", page)
+                    put("perPage", perPage)
                 },
             )
         }.toString().toRequestBody(jsonMime)

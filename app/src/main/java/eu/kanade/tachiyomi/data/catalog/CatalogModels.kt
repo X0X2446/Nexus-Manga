@@ -34,8 +34,8 @@ data class CatalogOption(
 interface CatalogProvider {
     val id: String
     val displayName: String
-    suspend fun getTrending(page: Int): List<CatalogManga>
-    suspend fun getPopular(page: Int): List<CatalogManga>
+    suspend fun getTrending(page: Int, pageSize: Int = 24): List<CatalogManga>
+    suspend fun getPopular(page: Int, pageSize: Int = 24): List<CatalogManga>
 }
 
 object CatalogIds {
@@ -50,4 +50,12 @@ object CatalogIds {
 
     fun sourceIdOrNull(id: String): Long? =
         id.removePrefix("extension:").toLongOrNull().takeIf { isExtension(id) }
+
+    fun trackerServiceId(catalogId: String): Long? = when (catalogId) {
+        ANILIST -> 2L
+        MAL -> 1L
+        KITSU -> 3L
+        MANGABAKA -> 11L
+        else -> null
+    }
 }

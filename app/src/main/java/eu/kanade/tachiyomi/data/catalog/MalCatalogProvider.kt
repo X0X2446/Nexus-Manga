@@ -21,14 +21,14 @@ class MalCatalogProvider(
     override val id: String = CatalogIds.MAL
     override val displayName: String = "MyAnimeList"
 
-    override suspend fun getTrending(page: Int): List<CatalogManga> =
-        ranking(page, rankingType = "bypopularity")
+    override suspend fun getTrending(page: Int, pageSize: Int): List<CatalogManga> =
+        ranking(page, pageSize, rankingType = "bypopularity")
 
-    override suspend fun getPopular(page: Int): List<CatalogManga> =
-        ranking(page, rankingType = "manga")
+    override suspend fun getPopular(page: Int, pageSize: Int): List<CatalogManga> =
+        ranking(page, pageSize, rankingType = "manga")
 
-    private suspend fun ranking(page: Int, rankingType: String): List<CatalogManga> {
-        val limit = 24
+    private suspend fun ranking(page: Int, pageSize: Int, rankingType: String): List<CatalogManga> {
+        val limit = pageSize.coerceIn(6, 48)
         val offset = (page - 1).coerceAtLeast(0) * limit
         val url = "$BASE_API/manga/ranking".toUri().buildUpon()
             .appendQueryParameter("ranking_type", rankingType)

@@ -78,9 +78,11 @@ import mihon.domain.manga.model.toDomainManga
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.rounded.Check
+import mihon.icons.materialsymbols.rounded.FilterList
 import mihon.icons.materialsymbols.rounded.KeyboardArrowDown
 import mihon.icons.materialsymbols.rounded.KeyboardArrowUp
 import mihon.icons.materialsymbols.rounded.Public
+import mihon.icons.materialsymbols.rounded.SortByAlpha
 import mihon.icons.materialsymbols.roundedfilled.Circle
 import mihon.icons.materialsymbols.roundedfilled.Extension
 import tachiyomi.domain.chapter.model.Chapter
@@ -115,6 +117,9 @@ data class TrackerMangaDetailScreen(
         var loadingChapters by remember { mutableStateOf(false) }
         var chapterError by remember { mutableStateOf(false) }
         var descriptionExpanded by remember { mutableStateOf(false) }
+        var sortDescending by remember { mutableStateOf(true) }
+        var selectedScanlator by remember { mutableStateOf<String?>(null) }
+        var showScanlatorFilter by remember { mutableStateOf(false) }
 
         val cleanSynopsis = remember(manga.synopsis) {
             manga.synopsis
@@ -124,6 +129,40 @@ data class TrackerMangaDetailScreen(
         }
         val dateFormatter = remember {
             UiPreferences.dateFormat("")
+        }
+        val scanlators = remember(chapters) {
+            chapters.mapNotNull { it.scanlator?.takeIf(String::isNotBlank) }
+                .distinct()
+                .sortedBy { it.lowercase() }
+        }
+        val visibleChapters = remember(chapters, sortDescending, selectedScanlator) {
+            chapters
+                .asSequence()
+                .filter { chapter ->
+                    selectedScanlator == null || chapter.scanlator == selectedScanlator
+                }
+                .sortedWith(
+                    compareByDescending<Chapter> { it.chapterNumber >= 0 }
+                        .let { base ->
+                            if (sortDescending) {
+                                base.thenByDescending { it.chapterNumber }
+                                    .thenByDescending { it.dateUpload }
+                            } else {
+                                base.thenBy { it.chapterNumber }
+                                    .thenBy { it.dateUpload }
+                            }
+                        },
+                )
+                .toList()
+        }
+        val continueChapter = remember(visibleChapters) {
+            visibleChapters.firstOrNull { !it.read && it.lastPageRead > 0 }
+                ?: visibleChapters.firstOrNull { !it.read }
+                ?: visibleChapters.firstOrNull { it.lastPageRead > 0 }
+                ?: visibleChapters.firstOrNull()
+        }
+        val hasStartedReading = remember(chapters) {
+            chapters.any { it.read || it.lastPageRead > 0 }
         }
 
         LaunchedEffect(Unit) {
@@ -154,6 +193,7 @@ data class TrackerMangaDetailScreen(
             chapterError = false
             chapters = emptyList()
             resolvedManga = null
+            selectedScanlator = null
             scope.launch {
                 val result = withContext(Dispatchers.IO) {
                     resolveAndLoadChapters(context, source, manga.title)
@@ -235,13 +275,99 @@ data class TrackerMangaDetailScreen(
                     }
                 }
 
+                if (continueChapter != null && !loadingChapters) {
+                    item {
+                        LiquidGlassSurface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .clickable {
+                                    context.startActivity(
+                                        ReaderActivity.newIntent(
+                                            context,
+                                            continueChapter.mangaId,
+                                            continueChapter.id,
+                                        ),
+                                    )
+                                },
+                            shape = GlassShapeLarge,
+                            elevation = 10.dp,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = stringResource(
+                                        if (hasStartedReading) {
+                                            MR.strings.catalog_continue_reading
+                                        } else {
+                                            MR.strings.catalog_start_reading
+                                        },
+                                    ),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+
                 item {
-                    Text(
-                        text = stringResource(MR.strings.catalog_chapters_section),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(MR.strings.catalog_chapters_section),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (chapters.isNotEmpty()) {
+                            IconButton(
+                                onClick = { sortDescending = !sortDescending },
+                            ) {
+                                Icon(
+                                    imageVector = MaterialSymbols.Rounded.SortByAlpha,
+                                    contentDescription = stringResource(MR.strings.catalog_chapter_sort),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            if (scanlators.isNotEmpty()) {
+                                IconButton(onClick = { showScanlatorFilter = true }) {
+                                    Icon(
+                                        imageVector = MaterialSymbols.Rounded.FilterList,
+                                        contentDescription = stringResource(MR.strings.catalog_filter_scanlator),
+                                        tint = if (selectedScanlator != null) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (chapters.isNotEmpty()) {
+                        Text(
+                            text = stringResource(
+                                if (sortDescending) {
+                                    MR.strings.catalog_chapter_sort_desc
+                                } else {
+                                    MR.strings.catalog_chapter_sort_asc
+                                },
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
+                        )
+                    }
                 }
 
                 when {
@@ -285,7 +411,7 @@ data class TrackerMangaDetailScreen(
                             )
                         }
                     }
-                    chapters.isEmpty() -> {
+                    visibleChapters.isEmpty() -> {
                         item {
                             Text(
                                 text = stringResource(MR.strings.catalog_no_chapters),
@@ -296,7 +422,7 @@ data class TrackerMangaDetailScreen(
                         }
                     }
                     else -> {
-                        items(chapters, key = { it.id }) { chapter ->
+                        items(visibleChapters, key = { it.id }) { chapter ->
                             ChapterGlassRow(
                                 chapter = chapter,
                                 dateText = formatChapterDate(chapter.dateUpload, dateFormatter),
@@ -311,6 +437,18 @@ data class TrackerMangaDetailScreen(
                     }
                 }
             }
+        }
+
+        if (showScanlatorFilter) {
+            ScanlatorFilterSheet(
+                scanlators = scanlators,
+                selected = selectedScanlator,
+                onSelect = {
+                    selectedScanlator = it
+                    showScanlatorFilter = false
+                },
+                onDismiss = { showScanlatorFilter = false },
+            )
         }
 
         if (showPicker) {
@@ -885,6 +1023,98 @@ private fun ExtensionLanguagePickerSheet(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScanlatorFilterSheet(
+    scanlators: List<String>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(MR.strings.catalog_filter_scanlator),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            LiquidGlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(null) },
+                shape = GlassShapeMedium,
+                elevation = if (selected == null) 10.dp else 4.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(MR.strings.catalog_filter_all_scanlators),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                        color = if (selected == null) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                    if (selected == null) {
+                        Icon(
+                            imageVector = MaterialSymbols.Rounded.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            scanlators.forEach { scanlator ->
+                LiquidGlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(scanlator) },
+                    shape = GlassShapeMedium,
+                    elevation = if (selected == scanlator) 10.dp else 4.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = scanlator,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                            color = if (selected == scanlator) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        if (selected == scanlator) {
+                            Icon(
+                                imageVector = MaterialSymbols.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                 }

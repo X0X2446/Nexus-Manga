@@ -19,14 +19,14 @@ class KitsuCatalogProvider(
     override val id: String = CatalogIds.KITSU
     override val displayName: String = "Kitsu"
 
-    override suspend fun getTrending(page: Int): List<CatalogManga> =
-        browse(page, sort = "-userCount")
+    override suspend fun getTrending(page: Int, pageSize: Int): List<CatalogManga> =
+        browse(page, pageSize, sort = "-userCount")
 
-    override suspend fun getPopular(page: Int): List<CatalogManga> =
-        browse(page, sort = "-averageRating")
+    override suspend fun getPopular(page: Int, pageSize: Int): List<CatalogManga> =
+        browse(page, pageSize, sort = "-averageRating")
 
-    private suspend fun browse(page: Int, sort: String): List<CatalogManga> {
-        val limit = 24
+    private suspend fun browse(page: Int, pageSize: Int, sort: String): List<CatalogManga> {
+        val limit = pageSize.coerceIn(6, 48)
         val offset = (page - 1).coerceAtLeast(0) * limit
         val url = "$BASE_API/manga".toUri().buildUpon()
             .appendQueryParameter("sort", sort)

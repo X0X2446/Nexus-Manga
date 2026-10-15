@@ -16,10 +16,10 @@ class MangaBakaCatalogProvider(
     override val id: String = CatalogIds.MANGABAKA
     override val displayName: String = "MangaBaka"
 
-    override suspend fun getTrending(page: Int): List<CatalogManga> =
+    override suspend fun getTrending(page: Int, pageSize: Int): List<CatalogManga> =
         searchPage(page, query = TRENDING_QUERIES[(page - 1).coerceAtLeast(0) % TRENDING_QUERIES.size])
 
-    override suspend fun getPopular(page: Int): List<CatalogManga> =
+    override suspend fun getPopular(page: Int, pageSize: Int): List<CatalogManga> =
         searchPage(page, query = POPULAR_QUERIES[(page - 1).coerceAtLeast(0) % POPULAR_QUERIES.size])
 
     private suspend fun searchPage(page: Int, query: String): List<CatalogManga> {

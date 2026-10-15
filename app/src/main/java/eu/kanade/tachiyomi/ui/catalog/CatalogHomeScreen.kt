@@ -147,13 +147,15 @@ fun CatalogHomeContent(
                 EmptyScreen(stringRes = MR.strings.catalog_no_extensions)
             }
             else -> {
+                val coverDp = state.coverSizeDp.coerceIn(96, 168).dp
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(118.dp),
+                    columns = GridCells.Adaptive(coverDp),
                     state = gridState,
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = contentPadding.calculateTopPadding() + 64.dp,
+                        // Keep content below the floating catalog switcher + status bar.
+                        top = contentPadding.calculateTopPadding() + 108.dp,
                         bottom = contentPadding.calculateBottomPadding() + 96.dp,
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -176,8 +178,24 @@ fun CatalogHomeContent(
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             ContinueRow(
                                 items = state.continueReading,
+                                coverWidth = coverDp,
                                 onClick = { navigator.push(MangaScreen(it)) },
                             )
+                        }
+                    }
+
+                    if (state.isTrackerCatalog) {
+                        state.trackedSections.forEach { section ->
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "tracked-${section.status}") {
+                                SectionLabel(stringResource(section.titleRes))
+                            }
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "tracked-row-${section.status}") {
+                                ContinueRow(
+                                    items = section.items,
+                                    coverWidth = coverDp,
+                                    onClick = { navigator.push(MangaScreen(it)) },
+                                )
+                            }
                         }
                     }
 
@@ -215,7 +233,7 @@ fun CatalogHomeContent(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
-                .padding(start = 12.dp, top = 4.dp),
+                .padding(start = 12.dp, top = 8.dp),
         )
     }
 
@@ -334,6 +352,7 @@ private fun FeaturedCarouselCard(
 @Composable
 private fun ContinueRow(
     items: List<CatalogViewModel.ContinueItem>,
+    coverWidth: androidx.compose.ui.unit.Dp,
     onClick: (Long) -> Unit,
 ) {
     LazyRow(
@@ -343,7 +362,7 @@ private fun ContinueRow(
         items(items, key = { it.mangaId }) { item ->
             LiquidGlassSurface(
                 modifier = Modifier
-                    .width(118.dp)
+                    .width(coverWidth)
                     .clickable { onClick(item.mangaId) },
                 shape = GlassShapeMedium,
             ) {

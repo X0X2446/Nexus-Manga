@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.catalog
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.icerock.moko.resources.StringResource
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -14,6 +15,7 @@ import eu.kanade.tachiyomi.data.catalog.CatalogKind
 import eu.kanade.tachiyomi.data.catalog.CatalogManga
 import eu.kanade.tachiyomi.data.catalog.CatalogOption
 import eu.kanade.tachiyomi.data.catalog.CatalogRepository
+import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,7 @@ import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.track.interactor.GetTracksPerManga
 
 @Inject
 @ViewModelKey
@@ -38,28 +41,50 @@ class CatalogViewModel(
     private val sourceManager: SourceManager,
     private val getLibraryManga: GetLibraryManga,
     private val networkToLocalManga: NetworkToLocalManga,
+    private val getTracksPerManga: GetTracksPerManga,
+    private val trackerManager: TrackerManager,
 ) : ViewModel() {
 
     val state: StateFlow<State>
         field = MutableStateFlow(State())
 
     init {
-        // Seed tracker options immediately so the switcher is usable before extensions load.
         state.update {
-            it.copy(trackerOptions = catalogRepository.trackerOptions())
+            it.copy(
+                trackerOptions = catalogRepository.trackerOptions(),
+                coverSizeDp = sourcePreferences.catalogCoverSize.get(),
+                pageSize = sourcePreferences.catalogPageSize.get(),
+            )
         }
 
         viewModelScope.launch {
-            combine(
+            val catalogFlow = combine(
                 sourcePreferences.activeCatalogId.changes(),
                 catalogRepository.extensionOptionsFlow(),
                 getLibraryManga.subscribe(),
-            ) { catalogId, extensions, library ->
-                Triple(catalogId, extensions, library)
-            }.collectLatest { (catalogId, extensions, library) ->
+                getTracksPerManga.subscribe(),
+            ) { catalogId, extensions, library, tracksByManga ->
+                Quadruple(catalogId, extensions, library, tracksByManga)
+            }
+            val prefsFlow = combine(
+                sourcePreferences.catalogCoverSize.changes(),
+                sourcePreferences.catalogPageSize.changes(),
+            ) { coverSize, pageSize -> coverSize to pageSize }
+
+            combine(catalogFlow, prefsFlow) { catalog, prefs ->
+                CatalogInputs(
+                    catalogId = catalog.first,
+                    extensions = catalog.second,
+                    library = catalog.third,
+                    tracksByManga = catalog.fourth,
+                    coverSize = prefs.first,
+                    pageSize = prefs.second,
+                )
+            }.collectLatest { inputs ->
                 val trackers = catalogRepository.trackerOptions()
-                val active = (trackers + extensions).find { it.id == catalogId } ?: trackers.first()
-                val continueItems = library
+                val active = (trackers + inputs.extensions).find { it.id == inputs.catalogId }
+                    ?: trackers.first()
+                val continueItems = inputs.library
                     .asSequence()
                     .filter { it.hasStarted }
                     .sortedByDescending { it.lastRead }
@@ -74,20 +99,36 @@ class CatalogViewModel(
                     }
                     .toList()
 
+                val trackedSections = buildTrackedSections(
+                    catalogId = inputs.catalogId,
+                    library = inputs.library,
+                    tracksByManga = inputs.tracksByManga,
+                )
+
                 state.update {
                     it.copy(
-                        activeCatalogId = catalogId,
+                        activeCatalogId = inputs.catalogId,
                         trackerOptions = trackers,
-                        extensionOptions = extensions,
+                        extensionOptions = inputs.extensions,
                         activeOption = active,
                         continueReading = continueItems,
-                        isExtensionCatalog = CatalogIds.isExtension(catalogId),
+                        trackedSections = trackedSections,
+                        isExtensionCatalog = CatalogIds.isExtension(inputs.catalogId),
+                        coverSizeDp = inputs.coverSize,
+                        pageSize = inputs.pageSize,
                     )
                 }
-                loadCatalog(catalogId)
+                loadCatalog(inputs.catalogId)
             }
         }
     }
+
+    private data class Quadruple<A, B, C, D>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+    )
 
     fun setActiveCatalog(catalogId: String) {
         sourcePreferences.activeCatalogId.set(catalogId)
@@ -119,7 +160,38 @@ class CatalogViewModel(
         return networkToLocalManga(match.toDomainManga(source.id))
     }
 
+    private fun buildTrackedSections(
+        catalogId: String,
+        library: List<tachiyomi.domain.library.model.LibraryManga>,
+        tracksByManga: Map<Long, List<tachiyomi.domain.track.model.Track>>,
+    ): List<TrackedSection> {
+        if (CatalogIds.isExtension(catalogId)) return emptyList()
+        val trackerId = CatalogIds.trackerServiceId(catalogId) ?: return emptyList()
+        val tracker = trackerManager.get(trackerId) ?: return emptyList()
+
+        return tracker.getStatusList().mapNotNull { status ->
+            val items = library.mapNotNull { lib ->
+                val match = tracksByManga[lib.manga.id]
+                    ?.firstOrNull { it.trackerId == trackerId && it.status == status }
+                    ?: return@mapNotNull null
+                ContinueItem(
+                    mangaId = lib.manga.id,
+                    title = lib.manga.title,
+                    coverUrl = lib.manga.thumbnailUrl.orEmpty(),
+                    unreadCount = lib.unreadCount,
+                )
+            }
+            if (items.isEmpty()) return@mapNotNull null
+            TrackedSection(
+                status = status,
+                titleRes = tracker.getStatus(status) ?: return@mapNotNull null,
+                items = items.take(24),
+            )
+        }
+    }
+
     private suspend fun loadCatalog(catalogId: String, page: Int = 1, append: Boolean = false) {
+        val pageSize = sourcePreferences.catalogPageSize.get().coerceIn(6, 48)
         state.update {
             it.copy(
                 loading = !append,
@@ -147,14 +219,15 @@ class CatalogViewModel(
                 return
             }
 
-            val featured = if (page == 1) provider.getTrending(1) else state.value.featured
-            val popular = provider.getPopular(page)
+            val featured = if (page == 1) provider.getTrending(1, pageSize) else state.value.featured
+            val popular = provider.getPopular(page, pageSize)
             state.update {
                 it.copy(
                     loading = false,
                     loadingMore = false,
                     emptyExtensions = false,
                     page = page,
+                    pageSize = pageSize,
                     hasMore = popular.isNotEmpty(),
                     featured = if (append) it.featured else featured,
                     popular = if (append) it.popular + popular else popular,
@@ -173,12 +246,28 @@ class CatalogViewModel(
         }
     }
 
+    private data class CatalogInputs(
+        val catalogId: String,
+        val extensions: List<CatalogOption>,
+        val library: List<tachiyomi.domain.library.model.LibraryManga>,
+        val tracksByManga: Map<Long, List<tachiyomi.domain.track.model.Track>>,
+        val coverSize: Int,
+        val pageSize: Int,
+    )
+
     @Immutable
     data class ContinueItem(
         val mangaId: Long,
         val title: String,
         val coverUrl: String,
         val unreadCount: Long,
+    )
+
+    @Immutable
+    data class TrackedSection(
+        val status: Long,
+        val titleRes: StringResource,
+        val items: List<ContinueItem>,
     )
 
     @Immutable
@@ -190,10 +279,13 @@ class CatalogViewModel(
         val featured: List<CatalogManga> = emptyList(),
         val popular: List<CatalogManga> = emptyList(),
         val continueReading: List<ContinueItem> = emptyList(),
+        val trackedSections: List<TrackedSection> = emptyList(),
         val loading: Boolean = true,
         val loadingMore: Boolean = false,
         val error: String? = null,
         val page: Int = 1,
+        val pageSize: Int = 24,
+        val coverSizeDp: Int = 118,
         val hasMore: Boolean = true,
         val isExtensionCatalog: Boolean = false,
         val emptyExtensions: Boolean = false,

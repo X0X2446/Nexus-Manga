@@ -10,10 +10,10 @@ class ExtensionCatalogProvider(
     override val id: String = CatalogIds.extension(source.id)
     override val displayName: String = source.name
 
-    override suspend fun getTrending(page: Int): List<CatalogManga> =
+    override suspend fun getTrending(page: Int, pageSize: Int): List<CatalogManga> =
         mapPage(source.getPopularManga(page))
 
-    override suspend fun getPopular(page: Int): List<CatalogManga> {
+    override suspend fun getPopular(page: Int, pageSize: Int): List<CatalogManga> {
         return if (source.supportsLatest) {
             mapPage(source.getLatestUpdates(page))
         } else {

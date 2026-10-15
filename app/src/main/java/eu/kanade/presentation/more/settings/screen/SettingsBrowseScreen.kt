@@ -37,6 +37,31 @@ object SettingsBrowseScreen : SearchableSettings {
 
         return listOf(
             Preference.PreferenceGroup(
+                title = stringResource(MR.strings.catalog_pref_group),
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.ListPreference(
+                        preference = sourcePreferences.catalogPageSize,
+                        entries = mapOf(
+                            12 to "12",
+                            24 to "24",
+                            36 to "36",
+                            48 to "48",
+                        ),
+                        title = stringResource(MR.strings.catalog_pref_page_size),
+                    ),
+                    Preference.PreferenceItem.ListPreference(
+                        preference = sourcePreferences.catalogCoverSize,
+                        entries = mapOf(
+                            96 to stringResource(MR.strings.catalog_cover_size_compact),
+                            118 to stringResource(MR.strings.catalog_cover_size_comfortable),
+                            140 to stringResource(MR.strings.catalog_cover_size_large),
+                            168 to stringResource(MR.strings.catalog_cover_size_xlarge),
+                        ),
+                        title = stringResource(MR.strings.catalog_pref_cover_size),
+                    ),
+                ),
+            ),
+            Preference.PreferenceGroup(
                 title = stringResource(MR.strings.label_sources),
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(

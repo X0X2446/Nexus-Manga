@@ -48,6 +48,12 @@ class SourcePreferences(
         "tracker:anilist",
     )
 
+    /** How many manga cards to request per catalog page. */
+    val catalogPageSize: Preference<Int> = preferenceStore.getInt("catalog_page_size", 24)
+
+    /** Approximate cover width used by the catalog home grid (dp). */
+    val catalogCoverSize: Preference<Int> = preferenceStore.getInt("catalog_cover_size", 118)
+
     val enabledContentWarnings: Preference<Set<ContentWarning>> = preferenceStore.getEnumSet(
         "enabled_content_warnings",
         setOf(ContentWarning.SAFE, ContentWarning.MIXED, ContentWarning.NSFW),

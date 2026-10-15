@@ -1,8 +1,11 @@
 package tachiyomi.presentation.core.components.material
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScaffoldDefaults
@@ -16,6 +19,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -35,35 +39,67 @@ fun Scaffold(
     snackbarHost: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     floatingActionButtonPosition: FabPosition = FabPosition.End,
-    containerColor: Color = MaterialTheme.colorScheme.background,
-    contentColor: Color = contentColorFor(containerColor),
+    containerColor: Color = Color.Transparent,
+    contentColor: Color = contentColorFor(MaterialTheme.colorScheme.background),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     var fabHeight by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
+    val isDark = isSystemInDarkTheme()
+    val atmosphere = nexusScaffoldAtmosphere(isDark)
 
-    androidx.compose.material3.Scaffold(
-        modifier = modifier.nestedScroll(topBarScrollBehavior.nestedScrollConnection),
-        topBar = { topBar(topBarScrollBehavior) },
-        bottomBar = bottomBar,
-        snackbarHost = snackbarHost,
-        floatingActionButton = {
-            Box(Modifier.onSizeChanged { fabHeight = it.height }) {
-                floatingActionButton()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(atmosphere),
+    ) {
+        androidx.compose.material3.Scaffold(
+            modifier = modifier.nestedScroll(topBarScrollBehavior.nestedScrollConnection),
+            topBar = { topBar(topBarScrollBehavior) },
+            bottomBar = bottomBar,
+            snackbarHost = snackbarHost,
+            floatingActionButton = {
+                Box(modifier.onSizeChanged { fabHeight = it.height }) {
+                    floatingActionButton()
+                }
+            },
+            floatingActionButtonPosition = floatingActionButtonPosition,
+            containerColor = containerColor,
+            contentColor = contentColor,
+            contentWindowInsets = contentWindowInsets,
+        ) { contentPadding ->
+            val paddingValues = remember(contentPadding) {
+                FabAwarePaddingValues(contentPadding) {
+                    if (fabHeight == 0) 0.dp else with(density) { fabHeight.toDp() } + FabSpacing
+                }
             }
-        },
-        floatingActionButtonPosition = floatingActionButtonPosition,
-        containerColor = containerColor,
-        contentColor = contentColor,
-        contentWindowInsets = contentWindowInsets,
-    ) { contentPadding ->
-        val paddingValues = remember(contentPadding) {
-            FabAwarePaddingValues(contentPadding) {
-                if (fabHeight == 0) 0.dp else with(density) { fabHeight.toDp() } + FabSpacing
-            }
+            content(paddingValues)
         }
-        content(paddingValues)
+    }
+}
+
+@Composable
+private fun nexusScaffoldAtmosphere(isDark: Boolean): Brush {
+    val scheme = MaterialTheme.colorScheme
+    return if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF071214),
+                scheme.background,
+                Color(0xFF0E1A1C),
+                Color(0xFF122022),
+            ),
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFDFF5F1),
+                scheme.background,
+                Color(0xFFF2FAF8),
+                Color(0xFFE8F4F1),
+            ),
+        )
     }
 }
 
@@ -81,4 +117,5 @@ private class FabAwarePaddingValues(
 
     override fun calculateBottomPadding(): Dp = base.calculateBottomPadding() + extraBottom()
 }
+
 private val FabSpacing = 16.dp
