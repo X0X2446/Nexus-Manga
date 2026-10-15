@@ -49,7 +49,17 @@
     <string name="catalog_read_more">Read more</string>
     <string name="catalog_show_less">Show less</string>
     <string name="catalog_opening_manga">Opening manga…</string>
+    <string name="catalog_loading_chapters">Loading chapters…</string>
     <string name="catalog_no_match">No match found in that extension</string>
+    <string name="catalog_select_source">Select source</string>
+    <string name="catalog_tap_choose_source">Tap Read to choose a source</string>
+    <string name="catalog_languages_count">%1$d languages</string>
+    <string name="catalog_matched_as">Matched as %1$s</string>
+    <string name="catalog_chapters_section">Chapters</string>
+    <string name="catalog_chapter_error">Couldn\'t load chapters from this source</string>
+    <string name="catalog_no_chapters">No chapters found</string>
+    <string name="catalog_change_source">Change source</string>
+    <string name="catalog_language_variants">Language variants</string>
     <string name="onboarding_tile_theme">Theme</string>
     <string name="onboarding_tile_storage">Storage</string>
     <string name="onboarding_tile_permissions">Permissions</string>

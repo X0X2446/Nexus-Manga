@@ -45,10 +45,12 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.metro.IsDebugBuild
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.repository.ExtensionStoreRepository
+import mihon.domain.source.interactor.UpdateMangaFromRemote
 import nl.adaptivity.xmlutil.serialization.XML
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.ResetCategoryFlags
+import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.GetFavorites
@@ -124,6 +126,8 @@ interface AppGraph : ViewModelGraph {
     val addTracks: AddTracks
     val upsertTrack: UpsertTrack
     val networkToLocalManga: NetworkToLocalManga
+    val updateMangaFromRemote: UpdateMangaFromRemote
+    val getChaptersByMangaId: GetChaptersByMangaId
 
     val getExtensionStoreCountAsFlow: GetExtensionStoreCountAsFlow
 
